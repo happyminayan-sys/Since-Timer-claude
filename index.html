@@ -1055,12 +1055,20 @@ function parseCSVText(text) {
     const cols=parseLine(lines[i]);
     const title=cols[0]||'',category=cols[1]||'',dateStr=cols[2]||'',note=cols[3]||'';
     if(!title){errors.push(`${i+1}行目: タイトルが空`);continue;}
-    // 日付のみ（YYYY/MM/DD）でも受け付ける。時間なしの場合は00:00とする
-    let normalized = dateStr.replace(/\//g,'-');
+    // 日時が空の行はスキップ
+    if (!dateStr) continue;
+    // YYYY/M/D H:mm や YYYY/MM/DD など1桁月日・時間なしに対応
+    let normalized = dateStr.trim();
+    // スラッシュをハイフンに
+    normalized = normalized.replace(/\//g, '-');
+    // 月・日を2桁にゼロ埋め: 2026-3-26 → 2026-03-26
+    normalized = normalized.replace(/-(\d)(?=-|T|\s|$)/g, '-0$1');
+    // スペースをTに
+    normalized = normalized.replace(' ', 'T');
+    // 時間なし(YYYY-MM-DD)なら00:00補完
     if (/^\d{4}-\d{2}-\d{2}$/.test(normalized)) normalized += 'T00:00';
-    else normalized = normalized.replace(' ','T');
-    const date=new Date(normalized);
-    if(!dateStr||isNaN(date)){errors.push(`${i+1}行目: 日時が無効 "${dateStr}"`);continue;}
+    const date = new Date(normalized);
+    if (isNaN(date)) { errors.push(`${i+1}行目: 日時が無効 "${dateStr}"`); continue; }
     rows.push({title,category,date:date.toISOString(),note});
   }
   if(errors.length) throw new Error(errors.join('\n'));
