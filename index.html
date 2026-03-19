@@ -178,12 +178,32 @@
   .tl-date { font-size: 11px; color: var(--muted); font-family: var(--mono); margin-top: 1px; }
   .tl-note { font-size: 12px; color: var(--text); margin-top: 4px; }
   .tl-interval { font-size: 11px; color: var(--muted); margin-top: 4px; }
-  .tl-del {
-    float: right; margin-top: 2px; width: 22px; height: 22px; border-radius: 5px;
+  .tl-btns { float: right; display: flex; gap: 4px; margin-top: 2px; }
+  .tl-del, .tl-edit {
+    width: 22px; height: 22px; border-radius: 5px;
     background: none; border: 1px solid var(--border); color: var(--muted);
     cursor: pointer; font-size: 10px; display: flex; align-items: center; justify-content: center;
   }
   .tl-del:hover { background: #fdf0ea; color: var(--countdown); border-color: var(--countdown); }
+  .tl-edit:hover { background: #e8f4ee; color: var(--since); border-color: var(--since); }
+  .tl-edit-form {
+    margin-top: 8px; display: flex; flex-direction: column; gap: 6px;
+    background: var(--bg); border-radius: 8px; padding: 10px;
+  }
+  .tl-edit-form input {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 6px; color: var(--text); font-family: var(--font);
+    font-size: 12px; padding: 7px 10px; outline: none; width: 100%;
+  }
+  .tl-edit-form input:focus { border-color: var(--accent); }
+  .tl-edit-form input[type="datetime-local"] { font-family: var(--mono); }
+  .tl-edit-actions { display: flex; gap: 6px; }
+  .tl-save-btn, .tl-cancel-btn {
+    flex: 1; padding: 7px; border-radius: 6px; border: none;
+    font-family: var(--font); font-size: 12px; font-weight: 700; cursor: pointer;
+  }
+  .tl-save-btn { background: var(--accent); color: #fff; }
+  .tl-cancel-btn { background: var(--border); color: var(--muted); }
 
   /* ADD LOG */
   .add-log-area { border-top: 1px solid var(--border); padding: 12px 14px; }
@@ -689,13 +709,17 @@ function cardHTML(e) {
     const elapsedStr = fmtDurStr(Math.abs(ms),type2==='countdown'&&ms>0?'future':'past');
     const nextLog = logs[i+1];
     const intervalStr = nextLog ? `前回から ${fmtDurShort(Math.abs(new Date(log.date)-new Date(nextLog.date)))}` : '最初の記録';
-    return `<div class="tl-item">
+    const dateVal = log.date.slice(0,16);
+    return `<div class="tl-item" id="tlitem_${log.id}">
       <div class="tl-left">
         <div class="tl-dot"></div>
         ${!isLast?'<div class="tl-line"></div>':''}
       </div>
       <div class="tl-right">
-        <button class="tl-del" onclick="deleteLog('${e.id}','${log.id}');event.stopPropagation()">✕</button>
+        <div class="tl-btns">
+          <button class="tl-edit" onclick="openLogEdit('${e.id}','${log.id}');event.stopPropagation()">✏</button>
+          <button class="tl-del" onclick="deleteLog('${e.id}','${log.id}');event.stopPropagation()">✕</button>
+        </div>
         <div class="tl-elapsed">${elapsedStr}</div>
         <div class="tl-date">${fmtDate(log.date)}</div>
         ${log.note?`<div class="tl-note">${esc(log.note)}</div>`:''}
@@ -760,6 +784,43 @@ async function deleteLog(entryId, logId) {
   expandedIds.add(entryId);
   await window._saveToFirestore(entry);
   showToast('削除しました');
+}
+
+function openLogEdit(entryId, logId) {
+  const entry = entries.find(e=>e.id===entryId); if (!entry) return;
+  const log = entry.logs.find(l=>l.id===logId); if (!log) return;
+  // すでに開いているフォームを閉じる
+  document.querySelectorAll('.tl-edit-form').forEach(f=>f.remove());
+  const item = document.getElementById(`tlitem_${logId}`); if (!item) return;
+  const dateVal = new Date(log.date).toISOString().slice(0,16);
+  const form = document.createElement('div');
+  form.className = 'tl-edit-form';
+  form.innerHTML = `
+    <input type="datetime-local" id="leDate_${logId}" value="${dateVal}">
+    <input type="text" id="leNote_${logId}" placeholder="メモ（任意）" maxlength="100" value="${(log.note||'').replace(/"/g,'&quot;')}">
+    <div class="tl-edit-actions">
+      <button class="tl-cancel-btn" onclick="cancelLogEdit('${logId}');event.stopPropagation()">キャンセル</button>
+      <button class="tl-save-btn" onclick="saveLogEdit('${entryId}','${logId}');event.stopPropagation()">保存</button>
+    </div>`;
+  item.querySelector('.tl-right').appendChild(form);
+}
+
+function cancelLogEdit(logId) {
+  const form = document.querySelector(`#tlitem_${logId} .tl-edit-form`);
+  if (form) form.remove();
+}
+
+async function saveLogEdit(entryId, logId) {
+  const dateVal = document.getElementById(`leDate_${logId}`)?.value;
+  const note = document.getElementById(`leNote_${logId}`)?.value.trim()||'';
+  if (!dateVal) return;
+  const entry = entries.find(e=>e.id===entryId); if (!entry) return;
+  const log = entry.logs.find(l=>l.id===logId); if (!log) return;
+  log.date = new Date(dateVal).toISOString();
+  log.note = note;
+  expandedIds.add(entryId);
+  await window._saveToFirestore(entry);
+  showToast('更新しました');
 }
 
 // ── MODAL ──
@@ -897,7 +958,14 @@ function exportCSV() {
     });
   });
   const csv=rows.map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
-  dl('\uFEFF'+csv,`since-timer-${Date.now()}.csv`,'text/csv;charset=utf-8;');
+  // UTF-8 BOMをUint8Arrayで確実に付加（Windows Excelの文字化け対策）
+  const bom = new Uint8Array([0xEF, 0xBB, 0xBF]);
+  const csvBytes = new TextEncoder().encode(csv);
+  const csvWithBom = new Blob([bom, csvBytes], {type: 'text/csv;charset=utf-8;'});
+  const url = URL.createObjectURL(csvWithBom);
+  const a = document.createElement('a');
+  a.href = url; a.download = `since-timer-${Date.now()}.csv`; a.click();
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
   showToast('CSVを出力しました');
   document.getElementById('menuDropdown').classList.remove('open');
 }
@@ -947,9 +1015,26 @@ function closeCsvModal(event) {
 function onCsvFileSelected(input) {
   const file=input.files[0]; if(!file) return;
   document.getElementById('csvFileName').textContent=file.name;
-  const reader=new FileReader();
-  reader.onload=e=>{document.getElementById('csvText').value=e.target.result;};
-  reader.readAsText(file,'UTF-8');
+  // まずバイト列で読んでBOMやShift-JISを判定する
+  const binReader=new FileReader();
+  binReader.onload=e=>{
+    const bytes=new Uint8Array(e.target.result);
+    // UTF-8 BOM: EF BB BF
+    const isUtf8Bom = bytes[0]===0xEF && bytes[1]===0xBB && bytes[2]===0xBF;
+    // Shift-JIS判定: 0x81-0x9F or 0xE0-0xFC の2バイト文字が含まれるか
+    let likelyShiftJis = false;
+    if (!isUtf8Bom) {
+      for (let i=0; i<Math.min(bytes.length-1, 2000); i++) {
+        const b = bytes[i];
+        if ((b>=0x81 && b<=0x9F) || (b>=0xE0 && b<=0xFC)) { likelyShiftJis=true; break; }
+      }
+    }
+    const encoding = likelyShiftJis ? 'Shift-JIS' : 'UTF-8';
+    const textReader=new FileReader();
+    textReader.onload=te=>{document.getElementById('csvText').value=te.target.result;};
+    textReader.readAsText(file, encoding);
+  };
+  binReader.readAsArrayBuffer(file);
 }
 function parseCSVText(text) {
   text=text.replace(/^\uFEFF/,'');
