@@ -519,7 +519,7 @@ function renderAvatar(user) {
 
 // ── Firestore リアルタイム同期 ──
 function userCol() {
-  return collection(db, 'users', currentUser.uid, 'entries');
+  return collection(db, 'artifacts', 'since-timer', 'users', currentUser.uid, 'entries');
 }
 
 function startListener() {
