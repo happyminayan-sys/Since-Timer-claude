@@ -1477,27 +1477,40 @@ function parseCsvPreview() {
   }
 }
 async function executeCsvImport() {
-  if(!csvParsed) return;
+  if(!csvParsed) { showToast('先に「確認する」を押してください'); return; }
+  if(!window._batchSaveToFirestore) { showToast('ログインが必要です'); return; }
   const groups={};
   csvParsed.forEach(r=>{
     if(!groups[r.title])groups[r.title]={title:r.title,category:r.category,logs:[]};
-    groups[r.title].logs.push({id:uid(),date:r.date,note:r.note});
+    groups[r.title].logs.push({id:uid(),date:r.date,note:r.note,photo:''});
   });
   const toSave=[];
+  let addedLogs=0;
   Object.values(groups).forEach(g=>{
     const existing=entries.find(e=>e.title===g.title);
     if(existing){
-      g.logs.forEach(nl=>{if(!existing.logs.find(l=>l.date===nl.date))existing.logs.push(nl);});
+      g.logs.forEach(nl=>{
+        if(!existing.logs.find(l=>l.date===nl.date)){
+          existing.logs.push(nl); addedLogs++;
+        }
+      });
       toSave.push(existing);
     } else {
       const ne={id:uid(),title:g.title,category:g.category,createdAt:new Date().toISOString(),logs:g.logs};
+      addedLogs+=ne.logs.length;
       toSave.push(ne);
     }
   });
-  await window._batchSaveToFirestore(toSave);
-  document.getElementById('csvOverlay').classList.remove('open');
-  showToast(`${toSave.length}項目を保存しました`);
-  csvParsed=null;
+  if(toSave.length===0){ showToast('追加できるデータがありませんでした'); return; }
+  try {
+    await window._batchSaveToFirestore(toSave);
+    document.getElementById('csvOverlay').classList.remove('open');
+    showToast(`${toSave.length}項目・${addedLogs}件の記録を追加しました`);
+    csvParsed=null;
+  } catch(e) {
+    console.error(e);
+    showToast('保存に失敗しました: ' + e.message);
+  }
 }
 
 function dl(content,filename,type){
