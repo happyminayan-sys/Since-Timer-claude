@@ -205,6 +205,25 @@
   .tl-save-btn { background: var(--accent); color: #fff; }
   .tl-cancel-btn { background: var(--border); color: var(--muted); }
 
+  /* 記録追加モーダル */
+  .add-log-modal-body { padding: 16px 18px; display: flex; flex-direction: column; gap: 14px; }
+  .photo-drop-area {
+    border: 1.5px dashed var(--border); border-radius: 10px;
+    padding: 20px; text-align: center; color: var(--muted);
+    font-size: 13px; cursor: pointer; background: var(--bg);
+    display: flex; flex-direction: column; align-items: center; gap: 6px;
+  }
+  .photo-drop-area:hover { border-color: var(--accent); color: var(--text); }
+  .photo-drop-area .icon { font-size: 22px; }
+  .photo-preview-wrap { position: relative; display: inline-block; }
+  .photo-preview-wrap img { max-width: 100%; max-height: 160px; border-radius: 8px; display: block; }
+  .photo-preview-remove {
+    position: absolute; top: 6px; right: 6px;
+    width: 22px; height: 22px; border-radius: 50%;
+    background: rgba(0,0,0,0.5); border: none; color: #fff;
+    font-size: 11px; cursor: pointer; display: flex; align-items: center; justify-content: center;
+  }
+
   /* 画像 */
   .tl-photo { margin-top: 6px; }
   .tl-photo img { max-width: 100%; max-height: 200px; border-radius: 8px; display: block; object-fit: cover; cursor: pointer; }
@@ -495,6 +514,39 @@
 <div class="toast" id="toast"></div>
 
 <!-- 写真フルスクリーン -->
+<!-- 記録追加モーダル -->
+<div class="overlay" id="addLogOverlay" onclick="closeAddLogModal(event)">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-handle"></div>
+    <div class="modal-header">
+      <div class="modal-title">履歴追加</div>
+      <button class="btn-icon" onclick="closeAddLogModal()" style="width:30px;height:30px;font-size:13px;">✕</button>
+    </div>
+    <div class="add-log-modal-body">
+      <div>
+        <label class="form-label">日時</label>
+        <input class="form-input" id="alDate" type="datetime-local">
+      </div>
+      <div>
+        <label class="form-label">写真を追加</label>
+        <div id="alPhotoArea" class="photo-drop-area" onclick="document.getElementById('alPhotoInput').click()">
+          <span class="icon">📷</span>
+          <span>画像を選択</span>
+          <input type="file" id="alPhotoInput" accept="image/*" style="display:none" onchange="onAlPhotoSelected(this)">
+        </div>
+      </div>
+      <div>
+        <label class="form-label">メモ</label>
+        <textarea class="form-input" id="alNote" rows="4" placeholder="メモを入力…" maxlength="500"></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="closeAddLogModal()">中止</button>
+      <button class="btn-primary" onclick="submitAddLog()">確定</button>
+    </div>
+  </div>
+</div>
+
 <div class="photo-overlay" id="photoOverlay">
   <button class="photo-overlay-close" onclick="closePhoto()">✕</button>
   <img id="photoOverlayImg" src="" alt="">
@@ -768,19 +820,10 @@ function cardHTML(e) {
     </div>`;
   }).join('');
 
-  const addBar = `<div class="add-log-area" onclick="event.stopPropagation()">
-    <div class="add-log-row">
-      <input class="add-log-date" type="datetime-local" id="ld_${e.id}" onfocus="if(!this.value){const n=new Date();n.setSeconds(0,0);this.value=n.toISOString().slice(0,16);}" onclick="if(!this.value){const n=new Date();n.setSeconds(0,0);this.value=n.toISOString().slice(0,16);}">
-      <textarea class="add-log-note" id="ln_${e.id}" placeholder="メモ（任意）" maxlength="500" rows="2"></textarea>
-      <button class="add-log-btn" onclick="addLog('${e.id}')">記録</button>
-    </div>
-    <div style="display:flex;align-items:center;gap:8px;margin-top:6px;">
-      <label class="photo-input-label">
-        📷 写真を追加
-        <input type="file" accept="image/*" id="lp_${e.id}" style="display:none" onchange="onPhotoSelected(this,'${e.id}')">
-      </label>
-      <span id="lpname_${e.id}" style="font-size:11px;color:var(--muted);"></span>
-    </div>
+  const addBar = `<div style="padding:10px 14px;border-top:1px solid var(--border);" onclick="event.stopPropagation()">
+    <button style="width:100%;padding:9px;border-radius:10px;border:1px dashed var(--border);background:transparent;color:var(--muted);font-family:var(--font);font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;" onclick="openAddLogModal('${e.id}')">
+      <span style="font-size:18px;line-height:1">＋</span> 記録を追加
+    </button>
   </div>`;
 
   return `<div class="card ${type}" data-id="${e.id}">
@@ -813,12 +856,6 @@ function toggleExpand(id) {
   renderCards();
 }
 
-function onPhotoSelected(input, entryId) {
-  const file = input.files[0]; if (!file) return;
-  const nameEl = document.getElementById(`lpname_${entryId}`);
-  if (nameEl) nameEl.textContent = file.name;
-}
-
 async function compressImage(file, maxSize=800, quality=0.7) {
   return new Promise(resolve => {
     const img = new Image();
@@ -837,21 +874,69 @@ async function compressImage(file, maxSize=800, quality=0.7) {
   });
 }
 
-async function addLog(entryId) {
-  const dateVal = document.getElementById(`ld_${entryId}`)?.value;
-  const note = document.getElementById(`ln_${entryId}`)?.value.trim()||'';
-  if (!dateVal) return;
-  const entry = entries.find(e=>e.id===entryId); if (!entry) return;
-  const photoInput = document.getElementById(`lp_${entryId}`);
-  let photo = '';
-  if (photoInput?.files[0]) {
-    showToast('画像を処理中...');
-    photo = await compressImage(photoInput.files[0]);
-  }
-  entry.logs.push({ id: uid(), date: new Date(dateVal).toISOString(), note, photo });
-  expandedIds.add(entryId);
+// ── 記録追加モーダル ──
+let _addLogEntryId = null;
+let _addLogPhotoBase64 = '';
+
+function openAddLogModal(entryId) {
+  _addLogEntryId = entryId;
+  _addLogPhotoBase64 = '';
+  // 日時を現在時刻にリセット
+  const now = new Date(); now.setSeconds(0,0);
+  document.getElementById('alDate').value = now.toISOString().slice(0,16);
+  document.getElementById('alNote').value = '';
+  // 写真エリアをリセット
+  document.getElementById('alPhotoArea').innerHTML = `
+    <span class="icon">📷</span>
+    <span>画像を選択</span>
+    <input type="file" id="alPhotoInput" accept="image/*" style="display:none" onchange="onAlPhotoSelected(this)">`;
+  document.getElementById('alPhotoInput').value = '';
+  document.getElementById('addLogOverlay').classList.add('open');
+}
+
+function closeAddLogModal(event) {
+  if (event && event.target !== document.getElementById('addLogOverlay')) return;
+  document.getElementById('addLogOverlay').classList.remove('open');
+  _addLogEntryId = null;
+  _addLogPhotoBase64 = '';
+}
+
+function onAlPhotoSelected(input) {
+  const file = input.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = async e => {
+    _addLogPhotoBase64 = await compressImage(file);
+    // プレビュー表示
+    const area = document.getElementById('alPhotoArea');
+    area.innerHTML = `
+      <div class="photo-preview-wrap">
+        <img src="${_addLogPhotoBase64}">
+        <button class="photo-preview-remove" onclick="removeAlPhoto();event.stopPropagation()">✕</button>
+      </div>`;
+  };
+  reader.readAsDataURL(file);
+}
+
+function removeAlPhoto() {
+  _addLogPhotoBase64 = '';
+  document.getElementById('alPhotoArea').innerHTML = `
+    <span class="icon">📷</span>
+    <span>画像を選択</span>
+    <input type="file" id="alPhotoInput" accept="image/*" style="display:none" onchange="onAlPhotoSelected(this)">`;
+}
+
+async function submitAddLog() {
+  const dateVal = document.getElementById('alDate').value;
+  const note = document.getElementById('alNote').value.trim();
+  if (!dateVal) { document.getElementById('alDate').focus(); return; }
+  const entry = entries.find(e=>e.id===_addLogEntryId); if (!entry) return;
+  entry.logs.push({ id: uid(), date: new Date(dateVal).toISOString(), note, photo: _addLogPhotoBase64 });
+  expandedIds.add(_addLogEntryId);
+  document.getElementById('addLogOverlay').classList.remove('open');
   await window._saveToFirestore(entry);
   showToast('記録しました');
+  _addLogEntryId = null;
+  _addLogPhotoBase64 = '';
 }
 
 async function deleteLog(entryId, logId) {
