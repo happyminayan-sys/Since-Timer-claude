@@ -780,11 +780,7 @@ function cardHTML(e) {
     </div>`;
   }).join('');
 
-  const addBar = `<div style="padding:10px 14px;border-top:1px solid var(--border);" onclick="event.stopPropagation()">
-    <button style="width:100%;padding:9px;border-radius:10px;border:1px dashed var(--border);background:transparent;color:var(--muted);font-family:var(--font);font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;" onclick="openAddLogModal('${e.id}')">
-      <span style="font-size:18px;line-height:1">＋</span> 記録を追加
-    </button>
-  </div>`;
+
 
   return `<div class="card ${type}" data-id="${e.id}">
     <div class="card-main">
@@ -799,9 +795,11 @@ function cardHTML(e) {
         </div>
       </div>
       ${elapsedHTML(e)}
-      ${last?`<div class="card-lastdate">${fmtDate(last.date)} · ${logs.length}件</div>`:''}
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-top:4px;">
+        ${last?`<div class="card-lastdate">${fmtDate(last.date)} · ${logs.length}件</div>`:'<div></div>'}
+        <button class="btn-icon" style="width:28px;height:28px;font-size:16px;" onclick="openAddLogModal('${e.id}');event.stopPropagation()" title="記録を追加">＋</button>
+      </div>
     </div>
-    ${addBar}
     <div class="card-expand-toggle" onclick="toggleExpand('${e.id}')" style="border-top:1px solid var(--border);padding:9px 14px;font-size:11px;color:var(--muted);cursor:pointer;user-select:none;">
       ${isExpanded?'▲ 閉じる':'▼ 履歴 '+logs.length+'件'}
     </div>
