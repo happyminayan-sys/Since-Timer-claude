@@ -878,12 +878,22 @@ async function compressImage(file, maxSize=800, quality=0.7) {
 let _addLogEntryId = null;
 let _addLogPhotoBase64 = '';
 
+function localDatetimeValue(date) {
+  // datetime-local input用のローカル時刻文字列 (YYYY-MM-DDTHH:mm)
+  const y = date.getFullYear();
+  const mo = String(date.getMonth()+1).padStart(2,'0');
+  const d = String(date.getDate()).padStart(2,'0');
+  const h = String(date.getHours()).padStart(2,'0');
+  const mi = String(date.getMinutes()).padStart(2,'0');
+  return `${y}-${mo}-${d}T${h}:${mi}`;
+}
+
 function openAddLogModal(entryId) {
   _addLogEntryId = entryId;
   _addLogPhotoBase64 = '';
-  // 日時を現在時刻にリセット
+  // 日時を現在時刻にリセット（ローカル時刻）
   const now = new Date(); now.setSeconds(0,0);
-  document.getElementById('alDate').value = now.toISOString().slice(0,16);
+  document.getElementById('alDate').value = localDatetimeValue(now);
   document.getElementById('alNote').value = '';
   // 写真エリアをリセット
   document.getElementById('alPhotoArea').innerHTML = `
@@ -955,7 +965,7 @@ function openLogEdit(entryId, logId) {
   // すでに開いているフォームを閉じる
   document.querySelectorAll('.tl-edit-form').forEach(f=>f.remove());
   const item = document.getElementById(`tlitem_${logId}`); if (!item) return;
-  const dateVal = new Date(log.date).toISOString().slice(0,16);
+  const dateVal = localDatetimeValue(new Date(log.date));
   const form = document.createElement('div');
   form.className = 'tl-edit-form';
   form.innerHTML = `
@@ -1152,7 +1162,7 @@ function openAdd() {
   document.getElementById('dateRow').style.display = '';
   document.getElementById('noteRow').style.display = '';
   const now = new Date(); now.setSeconds(0,0);
-  document.getElementById('fDate').value = now.toISOString().slice(0,16);
+  document.getElementById('fDate').value = localDatetimeValue(now);
   document.getElementById('overlay').classList.add('open');
   setTimeout(()=>document.getElementById('fTitle').focus(),100);
 }
