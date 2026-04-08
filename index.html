@@ -108,6 +108,7 @@
                 <div id="initialDateGroup" class="font-black">
                     <label class="text-[10px] font-black text-slate-400 uppercase tracking-wider text-black font-black">初回日付</label>
                     <input type="date" id="newTimerInitialDate" class="w-full border-b-2 border-slate-100 py-1 outline-none text-sm font-medium font-black font-black">
+                    <div class="mt-4 font-black"><label class="text-[10px] font-black text-slate-400 uppercase tracking-wider text-black font-black">初回メモ</label><textarea id="newTimerMemo" class="w-full border rounded-lg p-2 text-sm h-20 resize-none border-slate-200 outline-none font-medium focus:ring-2 focus:ring-sky-100 font-black" placeholder="メモを入力..."></textarea></div>
                 </div>
                 <div class="flex gap-2 pt-2 font-black"><button onclick="closeModal('timer')" class="flex-1 py-3 text-slate-500 font-bold">中止</button><button id="timerSubmitBtn" class="flex-1 py-3 bg-slate-800 text-white rounded-xl font-bold shadow-lg">保存</button></div>
             </div>
@@ -254,7 +255,7 @@
 
         window.createTimer = async () => {
             const nid = Date.now().toString();
-            const nt = { id: nid, title: document.getElementById('newTimerTitle').value.trim(), category: document.getElementById('newTimerCategory').value.trim() || '未分類', color: currentSelectedColor, alertDays: parseInt(document.getElementById('newTimerAlertDays').value) || 0, isExpanded: false, logs: [{ id: Date.now()+1, timestamp: new Date(document.getElementById('newTimerInitialDate').value).getTime(), memo: "" }] };
+            const nt = { id: nid, title: document.getElementById('newTimerTitle').value.trim(), category: document.getElementById('newTimerCategory').value.trim() || '未分類', color: currentSelectedColor, alertDays: parseInt(document.getElementById('newTimerAlertDays').value) || 0, isExpanded: false, logs: [{ id: Date.now()+1, timestamp: new Date(document.getElementById('newTimerInitialDate').value).getTime(), memo: document.getElementById('newTimerMemo').value.trim() }] };
             await setDoc(doc(db, 'artifacts', currentAppId, 'users', user.uid, 'timers', nid), nt); closeModal('timer');
         };
 
@@ -296,6 +297,7 @@
                 } else {
                     document.getElementById('newTimerTitle').value = ""; document.getElementById('newTimerCategory').value = "";
                     document.getElementById('newTimerAlertDays').value = 0; currentSelectedColor = 'default';
+                    document.getElementById('newTimerMemo').value = "";
                     document.getElementById('initialDateGroup').classList.remove('hidden');
                 }
                 document.getElementById('timerSubmitBtn').onclick = id ? async () => {
@@ -345,7 +347,7 @@
                 const g = (lifePlan.goals || []).find(x => x.id === dashboardTab);
                 if (g) {
                     isGoal = true; title = g.title; let nP = 0; const range = g.target - g.startValue;
-                    if (range !== 0) nP = Math.min(100, Math.max(0, Math.floor((g.target > g.startValue ? (g.current-g.startValue)/range : (g.startValue-g.current)/(g.startValue-g.target))*100)));
+                    if (range !== 0) nP = Math.min(100, Math.max(0, Math.floor((g.target > g.startValue ? (g.current-g.startValue)/range : (g.startValue-g.current)/(g.startValue-g.current)/(g.startValue-g.target))*100)));
                     if (g.startDate && g.endDate) {
                         const s = new Date(g.startDate), e = new Date(g.endDate); timePercent = Math.min(100, Math.max(0, Math.floor(((now-s)/(e-s))*100)));
                         percent = timePercent; mainVal = `経過 ${timePercent}% (あと ${Math.floor((e-now)/86400000)}日)`; subVal = `実績：${g.current}/${g.target} (${nP}%達成)`;
