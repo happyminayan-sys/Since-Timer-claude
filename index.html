@@ -96,7 +96,7 @@
     </div>
 
     <div id="timerModal" class="fixed inset-0 bg-black/50 hidden items-center justify-center p-4 z-[100] backdrop-blur-sm font-black">
-        <div class="bg-white rounded-2xl w-full max-w-sm p-6 shadow-2xl text-left">
+        <div class="bg-white rounded-2xl w-full max-w-sm p-6 shadow-2xl text-left overflow-y-auto max-h-[90vh] no-scrollbar">
             <h3 class="text-lg font-bold mb-4 text-slate-800 font-black">タイマー設定</h3>
             <div class="space-y-4 font-black font-black">
                 <div><label class="text-[10px] font-black text-slate-400 uppercase tracking-wider text-black font-black">カテゴリ</label><input type="text" id="newTimerCategory" list="existingCategories" class="w-full border-b-2 border-slate-100 py-1 outline-none text-sm font-bold font-black"><datalist id="existingCategories"></datalist></div>
@@ -109,6 +109,11 @@
                     <label class="text-[10px] font-black text-slate-400 uppercase tracking-wider text-black font-black">初回日付</label>
                     <input type="date" id="newTimerInitialDate" class="w-full border-b-2 border-slate-100 py-1 outline-none text-sm font-medium font-black font-black">
                     <div class="mt-4 font-black"><label class="text-[10px] font-black text-slate-400 uppercase tracking-wider text-black font-black">初回メモ</label><textarea id="newTimerMemo" class="w-full border rounded-lg p-2 text-sm h-20 resize-none border-slate-200 outline-none font-medium focus:ring-2 focus:ring-sky-100 font-black" placeholder="メモを入力..."></textarea></div>
+                    <div class="grid grid-cols-2 gap-2 mt-4 font-black">
+                        <label class="flex flex-col items-center justify-center gap-1 py-3 border-2 border-dashed border-slate-200 rounded-xl text-slate-500 cursor-pointer hover:bg-slate-50 transition font-black"><span class="text-[10px] font-bold font-black">撮影</span><input type="file" class="hidden" accept="image/*" capture="environment" onchange="handlePhotoSelect(event)" multiple></label>
+                        <label class="flex flex-col items-center justify-center gap-1 py-3 border-2 border-dashed border-slate-200 rounded-xl text-slate-500 cursor-pointer hover:bg-slate-50 transition font-black"><span class="text-[10px] font-bold font-black">選択</span><input type="file" class="hidden" accept="image/*" onchange="handlePhotoSelect(event)" multiple></label>
+                    </div>
+                    <div id="newTimerPhotoPreviewContainer" class="hidden flex flex-wrap gap-2 mt-2 relative font-black"></div>
                 </div>
                 <div class="flex gap-2 pt-2 font-black"><button onclick="closeModal('timer')" class="flex-1 py-3 text-slate-500 font-bold">中止</button><button id="timerSubmitBtn" class="flex-1 py-3 bg-slate-800 text-white rounded-xl font-bold shadow-lg">保存</button></div>
             </div>
@@ -235,9 +240,10 @@
         };
 
         window.updatePhotoPreviews = () => {
-            const container = document.getElementById('photoPreviewContainer');
-            container.innerHTML = currentSelectedPhotosBase64.map((img, idx) => `<div class="relative w-20 h-20 mb-2"><img src="${img}" class="w-full h-full object-cover rounded-lg border shadow-inner"><button onclick="removeSelectedPhoto(${idx})" class="absolute -top-1 -right-1 bg-black/50 text-white rounded-full p-0.5">×</button></div>`).join('');
-            container.classList.toggle('hidden', currentSelectedPhotosBase64.length === 0);
+            const html = currentSelectedPhotosBase64.map((img, idx) => `<div class="relative w-20 h-20 mb-2"><img src="${img}" class="w-full h-full object-cover rounded-lg border shadow-inner"><button onclick="removeSelectedPhoto(${idx})" class="absolute -top-1 -right-1 bg-black/50 text-white rounded-full p-0.5">×</button></div>`).join('');
+            const c1 = document.getElementById('photoPreviewContainer'); const c2 = document.getElementById('newTimerPhotoPreviewContainer');
+            if(c1) { c1.innerHTML = html; c1.classList.toggle('hidden', currentSelectedPhotosBase64.length === 0); }
+            if(c2) { c2.innerHTML = html; c2.classList.toggle('hidden', currentSelectedPhotosBase64.length === 0); }
         };
         window.removeSelectedPhoto = (idx) => { currentSelectedPhotosBase64.splice(idx, 1); updatePhotoPreviews(); };
 
@@ -255,7 +261,7 @@
 
         window.createTimer = async () => {
             const nid = Date.now().toString();
-            const nt = { id: nid, title: document.getElementById('newTimerTitle').value.trim(), category: document.getElementById('newTimerCategory').value.trim() || '未分類', color: currentSelectedColor, alertDays: parseInt(document.getElementById('newTimerAlertDays').value) || 0, isExpanded: false, logs: [{ id: Date.now()+1, timestamp: new Date(document.getElementById('newTimerInitialDate').value).getTime(), memo: document.getElementById('newTimerMemo').value.trim() }] };
+            const nt = { id: nid, title: document.getElementById('newTimerTitle').value.trim(), category: document.getElementById('newTimerCategory').value.trim() || '未分類', color: currentSelectedColor, alertDays: parseInt(document.getElementById('newTimerAlertDays').value) || 0, isExpanded: false, logs: [{ id: Date.now()+1, timestamp: new Date(document.getElementById('newTimerInitialDate').value).getTime(), memo: document.getElementById('newTimerMemo').value.trim(), image: [...currentSelectedPhotosBase64] }] };
             await setDoc(doc(db, 'artifacts', currentAppId, 'users', user.uid, 'timers', nid), nt); closeModal('timer');
         };
 
@@ -298,6 +304,7 @@
                     document.getElementById('newTimerTitle').value = ""; document.getElementById('newTimerCategory').value = "";
                     document.getElementById('newTimerAlertDays').value = 0; currentSelectedColor = 'default';
                     document.getElementById('newTimerMemo').value = "";
+                    currentSelectedPhotosBase64 = []; updatePhotoPreviews();
                     document.getElementById('initialDateGroup').classList.remove('hidden');
                 }
                 document.getElementById('timerSubmitBtn').onclick = id ? async () => {
@@ -347,7 +354,7 @@
                 const g = (lifePlan.goals || []).find(x => x.id === dashboardTab);
                 if (g) {
                     isGoal = true; title = g.title; let nP = 0; const range = g.target - g.startValue;
-                    if (range !== 0) nP = Math.min(100, Math.max(0, Math.floor((g.target > g.startValue ? (g.current-g.startValue)/range : (g.startValue-g.current)/(g.startValue-g.current)/(g.startValue-g.target))*100)));
+                    if (range !== 0) nP = Math.min(100, Math.max(0, Math.floor((g.target > g.startValue ? (g.current-g.startValue)/range : (g.startValue-g.current)/(g.startValue-g.target))*100)));
                     if (g.startDate && g.endDate) {
                         const s = new Date(g.startDate), e = new Date(g.endDate); timePercent = Math.min(100, Math.max(0, Math.floor(((now-s)/(e-s))*100)));
                         percent = timePercent; mainVal = `経過 ${timePercent}% (あと ${Math.floor((e-now)/86400000)}日)`; subVal = `実績：${g.current}/${g.target} (${nP}%達成)`;
